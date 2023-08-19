@@ -49,6 +49,11 @@ resource "docker_container" "etcd" {
     name         = docker_network.etcd.id
     ipv4_address = "172.0.0.1${count.index}"
   }
+
+  ports {
+    internal = 2379
+    external = "2379${count.index}"
+  }
 }
 
 resource "docker_network" "etcd" {
