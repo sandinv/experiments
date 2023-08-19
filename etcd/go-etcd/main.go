@@ -28,8 +28,9 @@ func main() {
 	}
 
 	cli, err := clientv3.New(clientv3.Config{
-		Endpoints:   strings.Split(*endpoints, ","),
-		DialTimeout: 5 * time.Second,
+		Endpoints:         strings.Split(*endpoints, ","),
+		DialTimeout:       2 * time.Second,
+		DialKeepAliveTime: 2 * time.Second,
 	})
 	if err != nil {
 		appLogger.Error("could not establish connection with the etcd endpoints", "error", err)
@@ -42,6 +43,7 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 
+	appLogger.Info("starting to write to etcd cluster")
 	go func() {
 		for {
 			resp, err := cli.Put(ctx, "cur_date", time.Now().Format(time.RFC3339))
