@@ -16,34 +16,47 @@ variable "token" {
 locals {
   cluster = join(",", [
     for idx in range(var.etcd_members) :
-    "etcd-${idx}=http://etcd-${idx}:2380"
+    "etcd-${idx}=https://etcd-${idx}:2380"
+  ])
+  endpoints = join(",", [
+    for idx in range(var.etcd_members) :
+    "https://etcd-${idx}:2379"
   ])
 }
 
 resource "docker_image" "etcd" {
-  name = "bitnami/etcd:3.5.9"
+  name = "quay.io/coreos/etcd:v3.5.9"
 }
 
 resource "docker_container" "etcd" {
-  name  = "etcd-${count.index}"
-  count = var.etcd_members
-  image = docker_image.etcd.image_id
-
-  env = [
-    "ETCD_LISTEN_CLIENT_URLS=http://172.0.0.1${count.index}:2379",
-    "ETCD_LISTEN_PEER_URLS=http://172.0.0.1${count.index}:2380",
-    "ETCD_INTIAL_CLUSTER_TOKEN=${var.token}",
-    "ETCD_NAME=etcd-${count.index}",
-    "ETCD_DATA_DIR=data.etcd",
-    "ETCD_INITIAL_ADVERTISE_PEER_URLS=http://172.0.0.1${count.index}:2380",
-    "ETCD_ADVERTISE_CLIENT_URLS=http://172.0.0.1${count.index}:2379",
-    "ETCD_INITIAL_CLUSTER=${local.cluster}",
-    "ETCD_INITIAL_CLUSTER_STATE=new",
-  ]
-
+  name    = "etcd-${count.index}"
+  count   = var.etcd_members
+  image   = docker_image.etcd.image_id
+  restart = "always"
   command = [
-    "etcd"
+    "etcd",
+    "-listen-client-urls", "https://172.0.0.1${count.index}:2379",
+    "-listen-peer-urls", "https://172.0.0.1${count.index}:2380",
+    "-initial-cluster-token", var.token,
+    "-name", "etcd-${count.index}",
+    "-initial-advertise-peer-urls", "https://172.0.0.1${count.index}:2380",
+    "-advertise-client-urls", "https://172.0.0.1${count.index}:2379",
+    "-initial-cluster-state", "new",
+    "-initial-cluster", local.cluster,
+    "-cert-file=/etc/ssl/certs/etcd-${count.index}.cert",
+    "-key-file=/etc/ssl/certs/etcd-${count.index}.key",
+    "-client-cert-auth",
+    "-trusted-ca-file=/etc/ssl/certs/ca.pem",
+    "-peer-cert-file=/etc/ssl/certs/etcd-${count.index}.cert",
+    "-peer-key-file=/etc/ssl/certs/etcd-${count.index}.key",
+    "-peer-client-cert-auth",
+    "-peer-trusted-ca-file=/etc/ssl/certs/ca.pem",
   ]
+
+  volumes {
+    container_path = "/etc/ssl/certs"
+    host_path      = abspath("${path.module}/certs")
+  }
 
   networks_advanced {
     name         = docker_network.etcd.id
